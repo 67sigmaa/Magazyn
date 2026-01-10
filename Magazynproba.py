@@ -77,7 +77,7 @@ with st.sidebar:
     if st.button("Raport Finansowy"): st.session_state.menu = "Raport Finansowy"
     if st.button("Konfiguracja Kategorii"): st.session_state.menu = "Konfiguracja Kategorii"
     st.divider()
-    st.caption("Status: Tryb Wysokiego Kontrastu")
+    st.caption("Status: Zalogowany Online")
 
 # --- LOGIKA MODUŁÓW ---
 
