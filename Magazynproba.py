@@ -6,11 +6,19 @@ from datetime import datetime
 # --- KONFIGURACJA UI ---
 st.set_page_config(page_title="Magazyn Strategiczny", layout="wide")
 
-# Zaawansowana stylizacja Dark Industrial
+# Zaawansowana stylizacja Dark Industrial + Ukrycie nagłówka
 st.markdown("""
     <style>
+    /* Ukrywanie białego paska na górze i menu */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     .stApp { background-color: #0e1117; color: #ffffff; }
-    [data-testid="stSidebar"] { background-color: #161b22; min-width: 300px; }
+    
+    [data-testid="stSidebar"] { 
+        background-color: #161b22; 
+        min-width: 300px; 
+    }
     
     /* Stylizacja przycisków menu bocznego */
     .stButton>button {
@@ -31,7 +39,6 @@ st.markdown("""
     
     /* Nagłówki i teksty */
     h1, h2, h3 { color: #00d4ff !important; font-family: 'Segoe UI', sans-serif; }
-    .metric-label { color: #9ca3af !important; }
     .stMetric { 
         background-color: #1f2937; 
         padding: 20px; 
@@ -60,7 +67,7 @@ def init_db():
 
 init_db()
 
-# --- NAWIGACJA BOCZNA (PRZYCISKI ZAMIAST RADIO) ---
+# --- NAWIGACJA BOCZNA ---
 if 'menu' not in st.session_state:
     st.session_state.menu = "Pulpit Manedżerski"
 
@@ -74,23 +81,20 @@ with st.sidebar:
     if st.button("Konfiguracja Kategorii"): st.session_state.menu = "Konfiguracja Kategorii"
     
     st.divider()
-    st.caption(f"Operator: Administrator")
-    st.caption(f"System Time: {datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"Status: Autoryzowany")
+    st.caption(f"System: Magazyn v2.1")
 
 # --- LOGIKA MODUŁÓW ---
 
 if st.session_state.menu == "Pulpit Manedżerski":
     st.title("Pulpit Manedżerski")
-    
     df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, k.nazwa as kategoria 
                               FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
-
     if not df.empty:
         c1, c2, c3 = st.columns(3)
         c1.metric("Łączna liczba SKU", len(df))
-        c2.metric("Suma jednostek magazynowych", int(df['ilosc'].sum()))
+        c2.metric("Suma jednostek", int(df['ilosc'].sum()))
         c3.metric("Wartość inwentarza", f"{(df['ilosc'] * df['cena']).sum():,.2f} PLN")
-        
         st.subheader("Aktualne poziomy zapasów")
         st.bar_chart(df.set_index('nazwa')['ilosc'])
     else:
@@ -98,70 +102,60 @@ if st.session_state.menu == "Pulpit Manedżerski":
 
 elif st.session_state.menu == "Wyszukiwarka Zasobów":
     st.title("Wyszukiwarka Zasobów")
-    query_search = st.text_input("Wprowadź nazwę lub fragment nazwy towaru")
-    
+    query_search = st.text_input("Szukaj towaru po nazwie...")
     df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, k.nazwa as kategoria, p.data_aktualizacji 
                               FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
-    
     if query_search:
         df = df[df['nazwa'].str.contains(query_search, case=False)]
-    
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 elif st.session_state.menu == "Rejestracja Dostaw":
     st.title("Rejestracja Dostaw")
-    
     kat_df = pd.read_sql_query("SELECT * FROM kategorie", get_connection())
     if kat_df.empty:
-        st.error("Przed rejestracją towaru należy zdefiniować kategorie w module Konfiguracja.")
+        st.error("Zdefiniuj kategorie przed rejestracją towaru.")
     else:
         with st.form("delivery_form"):
             col1, col2 = st.columns(2)
             nazwa = col1.text_input("Nazwa artykułu")
             kat = col1.selectbox("Kategoria", kat_df['nazwa'])
-            ilosc = col2.number_input("Liczba jednostek", min_value=0, step=1)
-            cena = col2.number_input("Cena jednostkowa netto", min_value=0.0, step=0.01)
-            
-            if st.form_submit_button("Zatwierdź dokument dostawy"):
+            ilosc = col2.number_input("Ilość", min_value=0, step=1)
+            cena = col2.number_input("Cena jednostkowa", min_value=0.0, step=0.01)
+            if st.form_submit_button("Zapisz w systemie"):
                 if nazwa:
                     kat_id = int(kat_df[kat_df['nazwa'] == kat]['id'].values[0])
                     with get_connection() as conn:
                         conn.execute("INSERT INTO produkty (nazwa, ilosc, cena, kategoria_id, data_aktualizacji) VALUES (?,?,?,?,?)",
                                     (nazwa, ilosc, cena, kat_id, datetime.now().strftime("%Y-%m-%d %H:%M")))
-                    st.success(f"Pomyślnie zarejestrowano: {nazwa}")
+                    st.success(f"Dodano: {nazwa}")
                     st.rerun()
 
 elif st.session_state.menu == "Raport Finansowy":
     st.title("Raport Finansowy")
     df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, (p.ilosc * p.cena) as suma, k.nazwa as kategoria 
                               FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
-    
     if not df.empty:
-        st.subheader("Podsumowanie wartości grup towarowych")
-        fin_kat = df.groupby('kategoria')['suma'].sum()
-        st.area_chart(fin_kat)
-        
-        st.subheader("Szczegółowe zestawienie kosztowe")
+        st.subheader("Udział grup towarowych w kapitale")
+        st.area_chart(df.groupby('kategoria')['suma'].sum())
+        st.subheader("Zestawienie analityczne")
         st.table(df)
     else:
-        st.warning("Brak danych do generowania raportu.")
+        st.warning("Brak danych do analizy.")
 
 elif st.session_state.menu == "Konfiguracja Kategorii":
-    st.title("Konfiguracja Kategorii")
-    
+    st.title("Konfiguracja Systemu")
     col_input, col_table = st.columns(2)
     with col_input:
-        nowa_kat = st.text_input("Nazwa nowej grupy towarowej")
-        if st.button("Dodaj grupę do rejestru"):
+        nowa_kat = st.text_input("Nowa kategoria towarowa")
+        if st.button("Dodaj kategorię"):
             if nowa_kat:
                 try:
                     with get_connection() as conn:
                         conn.execute("INSERT INTO kategorie (nazwa) VALUES (?)", (nowa_kat,))
-                    st.success("Kategoria została dodana.")
+                    st.success("Kategoria dodana.")
                     st.rerun()
                 except:
-                    st.error("Błąd: Dana grupa już istnieje w systemie.")
-    
+                    st.error("Dana grupa już istnieje.")
     with col_table:
         kats = pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection())
-        st.dataframe(kats, use_container_width=True)
+        st.table(kats)
