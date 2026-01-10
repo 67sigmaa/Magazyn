@@ -1,7 +1,10 @@
 import sqlite3
+import streamlit as st
 
+# Funkcja inicjalizująca bazę danych
 def inicjalizuj_baze():
-    conn = sqlite3.connect('sklep.db')
+    # Używamy check_same_thread=False, aby SQLite działał poprawnie w Streamlit
+    conn = sqlite3.connect('sklep.db', check_same_thread=False)
     cursor = conn.cursor()
 
     # Tworzenie tabeli Kategoria
@@ -13,7 +16,7 @@ def inicjalizuj_baze():
         )
     ''')
 
-    # Tworzenie tabeli Produkty (z kluczem obcym do Kategoria)
+    # Tworzenie tabeli Produkty
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS produkty (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,38 +36,47 @@ def dodaj_kategorie(conn, nazwa, opis):
     cur = conn.cursor()
     cur.execute(sql, (nazwa, opis))
     conn.commit()
-    print(f"Dodano kategorię: {nazwa}")
 
 def dodaj_produkt(conn, nazwa, liczba, cena, kategoria_id):
     sql = 'INSERT INTO produkty (nazwa, liczba, cena, kategoria_id) VALUES (?, ?, ?, ?)'
     cur = conn.cursor()
     cur.execute(sql, (nazwa, liczba, cena, kategoria_id))
     conn.commit()
-    print(f"Dodano produkt: {nazwa}")
 
 def wyswietl_wszystko(conn):
     cur = conn.cursor()
-    print("\n--- LISTA PRODUKTÓW Z KATEGORIAMI ---")
     query = '''
         SELECT p.id, p.nazwa, p.liczba, p.cena, k.nazwa 
         FROM produkty p
         JOIN kategoria k ON p.kategoria_id = k.id
     '''
     cur.execute(query)
-    for row in cur.fetchall():
-        print(f"ID: {row[0]} | Nazwa: {row[1]} | Ilość: {row[2]} | Cena: {row[3]} zł | Kategoria: {row[4]}")
+    rows = cur.fetchall()
+    
+    if rows:
+        st.subheader("Lista produktów w bazie:")
+        # Wyświetlamy dane jako ładną tabelę w Streamlit
+        st.table(rows)
+    else:
+        st.info("Baza danych jest pusta. Kliknij przycisk poniżej, aby dodać dane.")
 
 # --- GŁÓWNA LOGIKA PROGRAMU ---
-if _name_ == "_main_":
+if __name__ == "__main__":
+    st.title("Zarządzanie Sklepem 🛒")
+    
     polaczenie = inicjalizuj_baze()
 
-    # Przykładowe dane
-    dodaj_kategorie(polaczenie, "Elektronika", "Urządzenia elektroniczne i gadżety")
-    dodaj_kategorie(polaczenie, "Dom", "Artykuły gospodarstwa domowego")
+    # Przycisk do dodawania danych, żeby nie dodawały się przy każdym odświeżeniu strony
+    if st.button("Dodaj przykładowe dane do bazy"):
+        dodaj_kategorie(polaczenie, "Elektronika", "Urządzenia elektroniczne")
+        dodaj_kategorie(polaczenie, "Dom", "Artykuły domowe")
+        
+        dodaj_produkt(polaczenie, "Laptop", 5, 3500.00, 1)
+        dodaj_produkt(polaczenie, "Myszka", 20, 150.50, 1)
+        dodaj_produkt(polaczenie, "Czajnik", 10, 89.99, 2)
+        st.success("Dodano przykładowe dane!")
 
-    dodaj_produkt(polaczenie, "Laptop", 5, 3500.00, 1)
-    dodaj_produkt(polaczenie, "Myszka", 20, 150.50, 1)
-    dodaj_produkt(polaczenie, "Czajnik", 10, 89.99, 2)
-
+    # Wyświetlanie tabeli
     wyswietl_wszystko(polaczenie)
+    
     polaczenie.close()
