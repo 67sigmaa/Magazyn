@@ -11,13 +11,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLIZACJA CSS ---
+# --- STYLIZACJA CSS (POPRAWIONA) ---
 st.markdown("""
     <style>
     .main { background-color: #f5f7f9; }
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
-    """, unsafe_allow_stdio=True)
+    """, unsafe_allow_html=True) # <-- TUTAJ BYŁ BŁĄD, JUŻ POPRAWIONE
 
 # --- FUNKCJE BAZY DANYCH ---
 def get_connection():
@@ -49,7 +49,6 @@ inicjalizuj_baze()
 
 # --- PANEL BOCZNY (NAWIGACJA) ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2271/2271062.png", width=100)
     st.title("System Zarządzania")
     menu = st.radio("Przejdź do:", ["📊 Dashboard", "📦 Asortyment", "⚙️ Ustawienia Kategorii"])
     st.divider()
@@ -59,9 +58,14 @@ with st.sidebar:
 if menu == "📊 Dashboard":
     st.title("📊 Statystyki Magazynowe")
     
+    # Pobieramy dane z JOINem, żeby mieć nazwy kategorii zamiast ID
     query = '''SELECT p.id, p.nazwa, p.ilosc, p.cena_netto, k.nazwa as kategoria 
                FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id'''
-    df = pd.read_sql_query(query, get_connection())
+    
+    try:
+        df = pd.read_sql_query(query, get_connection())
+    except:
+        df = pd.DataFrame() # Pusta ramka danych, jeśli tabela nie istnieje
     
     if not df.empty:
         df['wartosc'] = df['ilosc'] * df['cena_netto']
@@ -89,9 +93,9 @@ if menu == "📊 Dashboard":
             kat_stats = df.groupby('kategoria')['ilosc'].sum()
             st.bar_chart(kat_stats)
     else:
-        st.warning("Baza danych jest pusta. Przejdź do sekcji Asortyment, aby dodać produkty.")
+        st.warning("Baza danych jest pusta lub brak kategorii. Przejdź do sekcji 'Ustawienia Kategorii', a potem dodaj produkty.")
 
-# --- MODUŁ 2: ASORTYMENT (DODAWANIE I USUWANIE) ---
+# --- MODUŁ 2: ASORTYMENT ---
 elif menu == "📦 Asortyment":
     st.title("📦 Zarządzanie Produktami")
     
@@ -102,7 +106,7 @@ elif menu == "📦 Asortyment":
         if kategorie_df.empty:
             st.error("Błąd: Najpierw zdefiniuj kategorie w ustawieniach!")
         else:
-            with st.form("add_form"):
+            with st.form("add_form", clear_on_submit=True):
                 c1, c2 = st.columns(2)
                 nazwa = c1.text_input("Nazwa produktu")
                 kat = c1.selectbox("Kategoria", kategorie_df['nazwa'])
@@ -128,7 +132,7 @@ elif menu == "📦 Asortyment":
                 st.toast(f"Usunięto {produkt_do_usuniecia}")
                 st.rerun()
         else:
-            st.info("Brak produktów do wyświetlenia.")
+            st.info("Brak produktów w bazie.")
 
 # --- MODUŁ 3: USTAWIENIA KATEGORII ---
 elif menu == "⚙️ Ustawienia Kategorii":
@@ -138,17 +142,20 @@ elif menu == "⚙️ Ustawienia Kategorii":
     
     with col_a:
         st.subheader("Nowa Kategoria")
-        nowa_kat = st.text_input("Nazwa (np. Meble, Akcesoria)")
+        nowa_kat = st.text_input("Nazwa (np. Elektronika, Odzież)")
         if st.button("Dodaj kategorię"):
             if nowa_kat:
                 try:
                     wykonaj_sql("INSERT INTO kategorie (nazwa) VALUES (?)", (nowa_kat,))
-                    st.success("Dodano!")
+                    st.success(f"Dodano kategorię: {nowa_kat}")
                     st.rerun()
                 except:
                     st.error("Ta kategoria już istnieje!")
 
     with col_b:
         st.subheader("Istniejące Kategorie")
-        kat_df = pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection())
-        st.table(kat_df)
+        try:
+            kat_df = pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection())
+            st.table(kat_df)
+        except:
+            st.info("Brak zdefiniowanych kategorii.")
