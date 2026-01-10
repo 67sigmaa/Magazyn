@@ -102,7 +102,6 @@ elif st.session_state.menu == "Rejestracja Dostaw":
                 if nazwa:
                     kid = int(kat_df[kat_df['nazwa'] == kat]['id'].values[0])
                     conn = get_connection()
-                    # INTELIGENTNA AKTUALIZACJA: Sprawdź czy produkt istnieje
                     existing = conn.execute("SELECT id, ilosc FROM produkty WHERE nazwa = ?", (nazwa,)).fetchone()
                     
                     if existing:
@@ -126,7 +125,12 @@ elif st.session_state.menu == "Raport Finansowy":
         
         st.subheader("Struktura wartości według kategorii")
         kat_stats = df.groupby('kategoria')['suma'].agg(['sum', 'count']).rename(columns={'sum': 'Suma PLN', 'count': 'Liczba SKU'})
-        kat_stats['Udział %'] = (kat_stats['Suma PLN'] / total_val * 100).round(2)
+        
+        # Obliczanie udziału i zaokrąglanie do liczby całkowitej (int)
+        kat_stats['Udział %'] = (kat_stats['Suma PLN'] / total_val * 100).round(0).astype(int)
+        
+        # Formatowanie dla lepszego wyglądu tabeli
+        kat_stats['Udział %'] = kat_stats['Udział %'].astype(str) + " %"
         st.table(kat_stats)
         
         st.subheader("Szczegóły inwentarza")
