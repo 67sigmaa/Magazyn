@@ -12,47 +12,42 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Jaśniejsze tło główne */
-    .stApp { background-color: #1a1d23; color: #ffffff; }
+    /* Tło główne - bardzo ciemne dla kontrastu */
+    .stApp { background-color: #0d1117; color: #ffffff; }
     
-    /* Panel boczny - wyraźniejszy kontrast */
-    [data-testid="stSidebar"] { background-color: #24292e; min-width: 300px; }
+    /* Panel boczny - wyraźnie oddzielony */
+    [data-testid="stSidebar"] { background-color: #161b22; border-right: 1px solid #30363d; }
     
-    /* Stylizacja przycisków menu - jaśniejsze ramki */
+    /* Przyciski menu - jasne obramowanie, aby były widoczne */
     .stButton>button {
-        width: 100%; border-radius: 4px; background-color: #2d333b;
-        color: #e6edf3; border: 1px solid #444c56; text-align: left;
-        padding-left: 20px; transition: 0.3s;
+        width: 100%; border-radius: 6px; background-color: #21262d;
+        color: #f0f6fc; border: 1px solid #8b949e; text-align: left;
+        padding-left: 20px; font-weight: 500;
     }
     .stButton>button:hover { 
-        background-color: #373e47; 
+        background-color: #30363d; 
         border-color: #58a6ff; 
         color: #58a6ff; 
     }
     
-    /* Nagłówki - wyraźny błękit */
-    h1, h2, h3 { color: #58a6ff !important; font-weight: 600; }
+    /* Nagłówki - jaskrawy błękit */
+    h1, h2, h3 { color: #58a6ff !important; margin-bottom: 20px; }
     
-    /* Karty metryk - znacznie jaśniejsze i wyraźniejsze ramki */
+    /* KARTY METRYK - teraz są jasnoszare, aby mocno kontrastowały z czarnym tłem */
     div[data-testid="stMetric"] { 
-        background-color: #2d333b; 
+        background-color: #30363d; 
         padding: 20px; 
         border-radius: 10px; 
-        border: 1px solid #444c56;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        border: 2px solid #8b949e; /* Grubsza, jasna ramka */
     }
     
-    /* Tabele i kontenery danych */
+    /* Napisy w metrykach - białe i czytelne */
+    [data-testid="stMetricLabel"] { color: #c9d1d9 !important; font-size: 1.1rem !important; }
+    [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: bold !important; }
+
+    /* Tabele - jasne krawędzie */
     .stDataFrame, .stTable { 
-        background-color: #2d333b; 
-        border-radius: 8px; 
-    }
-    
-    /* Inputy i formularze */
-    .stTextInput>div>div>input, .stNumberInput>div>div>input {
-        background-color: #1a1d23;
-        color: white;
-        border: 1px solid #444c56;
+        border: 1px solid #484f58;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -75,14 +70,14 @@ if 'menu' not in st.session_state:
     st.session_state.menu = "Pulpit Manedżerski"
 
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center; margin-bottom: 30px; color: #58a6ff;'>KONTROLA MAGAZYNU</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #58a6ff;'>KONTROLA MAGAZYNU</h2>", unsafe_allow_html=True)
     if st.button("Pulpit Manedżerski"): st.session_state.menu = "Pulpit Manedżerski"
     if st.button("Wyszukiwarka Zasobów"): st.session_state.menu = "Wyszukiwarka Zasobów"
     if st.button("Rejestracja Dostaw"): st.session_state.menu = "Rejestracja Dostaw"
     if st.button("Raport Finansowy"): st.session_state.menu = "Raport Finansowy"
     if st.button("Konfiguracja Kategorii"): st.session_state.menu = "Konfiguracja Kategorii"
     st.divider()
-    st.caption("System: Magazyn v2.4")
+    st.caption("Status: Tryb Wysokiego Kontrastu")
 
 # --- LOGIKA MODUŁÓW ---
 
@@ -96,7 +91,7 @@ if st.session_state.menu == "Pulpit Manedżerski":
         c2.metric("Suma jednostek", int(df['ilosc'].sum()))
         c3.metric("Wycena inwentarza", f"{(df['ilosc'] * df['cena']).sum():,.2f} PLN")
         
-        st.subheader("Zestawienie stanów")
+        st.subheader("Bieżące zestawienie stanów")
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("Brak zarejestrowanych towarów.")
@@ -119,14 +114,14 @@ elif st.session_state.menu == "Rejestracja Dostaw":
             nazwa = c1.text_input("Nazwa artykułu")
             kat = c1.selectbox("Kategoria", kat_df['nazwa'])
             ilosc = c2.number_input("Ilość", min_value=0, step=1)
-            cena = c2.number_input("Cena netto", min_value=0.0, step=0.01)
-            if st.form_submit_button("Zapisz"):
+            cena = c2.number_input("Cena jednostkowa", min_value=0.0, step=0.01)
+            if st.form_submit_button("Zapisz w systemie"):
                 if nazwa:
                     kid = int(kat_df[kat_df['nazwa'] == kat]['id'].values[0])
                     with get_connection() as conn:
                         conn.execute("INSERT INTO produkty (nazwa, ilosc, cena, kategoria_id, data_aktualizacji) VALUES (?,?,?,?,?)",
                                     (nazwa, ilosc, cena, kid, datetime.now().strftime("%d.%m.%Y %H:%M")))
-                    st.success(f"Dodano: {nazwa}")
+                    st.success(f"Dodano produkt: {nazwa}")
 
 elif st.session_state.menu == "Raport Finansowy":
     st.title("Raport Finansowy")
@@ -144,7 +139,7 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
     
     with col_in:
         nowa_kat = st.text_input("Nowa grupa")
-        if st.button("Dodaj grupę"):
+        if st.button("Dodaj do bazy"):
             if nowa_kat:
                 conn = get_connection()
                 check = conn.execute("SELECT 1 FROM kategorie WHERE nazwa = ?", (nowa_kat,)).fetchone()
@@ -153,9 +148,9 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
                 else:
                     conn.execute("INSERT INTO kategorie (nazwa) VALUES (?)", (nowa_kat,))
                     conn.commit()
-                    st.success(f"Dodano: {nowa_kat}")
+                    st.success(f"Dodano grupę: {nowa_kat}")
                 conn.close()
     
     with col_tab:
-        kats = pd.read_sql_query("SELECT nazwa as 'Aktywne Kategorie' FROM kategorie", get_connection())
+        kats = pd.read_sql_query("SELECT nazwa as 'Zarejestrowane Kategorie' FROM kategorie", get_connection())
         st.table(kats)
