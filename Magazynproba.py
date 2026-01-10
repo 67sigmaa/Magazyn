@@ -4,33 +4,46 @@ import pandas as pd
 from datetime import datetime
 
 # --- KONFIGURACJA UI ---
-st.set_page_config(page_title="Magazyn", layout="wide", page_icon="📦")
+st.set_page_config(page_title="Magazyn Strategiczny", layout="wide")
 
-# Stylizacja Dark Nexus
+# Zaawansowana stylizacja Dark Industrial
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
-    [data-testid="stSidebar"] { background-color: #161b22; }
+    [data-testid="stSidebar"] { background-color: #161b22; min-width: 300px; }
+    
+    /* Stylizacja przycisków menu bocznego */
+    .stButton>button {
+        width: 100%;
+        border-radius: 4px;
+        background-color: #1f2937;
+        color: #d1d5db;
+        border: 1px solid #374151;
+        text-align: left;
+        padding-left: 20px;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #374151;
+        border-color: #00d4ff;
+        color: #00d4ff;
+    }
+    
+    /* Nagłówki i teksty */
+    h1, h2, h3 { color: #00d4ff !important; font-family: 'Segoe UI', sans-serif; }
+    .metric-label { color: #9ca3af !important; }
     .stMetric { 
         background-color: #1f2937; 
         padding: 20px; 
-        border-radius: 10px; 
-        border-left: 5px solid #00d4ff;
-    }
-    .status-card { 
-        background-color: #1f2937; 
-        padding: 15px; 
         border-radius: 8px; 
-        margin-bottom: 10px;
-        border: 1px solid #30363d;
+        border: 1px solid #374151;
     }
-    h1, h2, h3 { color: #00d4ff !format; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- BAZA DANYCH ---
 def get_connection():
-    return sqlite3.connect('magazyn_nowy.db', check_same_thread=False)
+    return sqlite3.connect('magazyn_finalny.db', check_same_thread=False)
 
 def init_db():
     with get_connection() as conn:
@@ -47,118 +60,108 @@ def init_db():
 
 init_db()
 
-# --- NAWIGACJA BOCZNA ---
-with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #00d4ff;'>SYSTEM MAGAZYN</h2>", unsafe_allow_html=True)
-    st.divider()
-    menu = st.radio("MODUŁY OPERACYJNE:", ["🛰️ Monitor Systemu", "📥 Zarządzanie Towarem", "⚙️ Konfiguracja Bazowa"])
-    st.divider()
-    st.caption(f"Status: Połączono | {datetime.now().strftime('%d.%m.%Y')}")
+# --- NAWIGACJA BOCZNA (PRZYCISKI ZAMIAST RADIO) ---
+if 'menu' not in st.session_state:
+    st.session_state.menu = "Pulpit Manedżerski"
 
-# --- MODUŁ 1: MONITOR (DASHBOARD) ---
-if menu == "🛰️ Monitor Systemu":
-    st.title("🛰️ Panel Monitorowania Magazynu")
+with st.sidebar:
+    st.markdown("<h2 style='text-align: center; margin-bottom: 30px;'>KONTROLA MAGAZYNU</h2>", unsafe_allow_html=True)
     
-    query = '''SELECT p.nazwa, p.ilosc, p.cena, k.nazwa as kategoria 
-               FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id'''
-    try:
-        df = pd.read_sql_query(query, get_connection())
-    except:
-        df = pd.DataFrame()
+    if st.button("Pulpit Manedżerski"): st.session_state.menu = "Pulpit Manedżerski"
+    if st.button("Wyszukiwarka Zasobów"): st.session_state.menu = "Wyszukiwarka Zasobów"
+    if st.button("Rejestracja Dostaw"): st.session_state.menu = "Rejestracja Dostaw"
+    if st.button("Raport Finansowy"): st.session_state.menu = "Raport Finansowy"
+    if st.button("Konfiguracja Kategorii"): st.session_state.menu = "Konfiguracja Kategorii"
+    
+    st.divider()
+    st.caption(f"Operator: Administrator")
+    st.caption(f"System Time: {datetime.now().strftime('%H:%M:%S')}")
+
+# --- LOGIKA MODUŁÓW ---
+
+if st.session_state.menu == "Pulpit Manedżerski":
+    st.title("Pulpit Manedżerski")
+    
+    df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, k.nazwa as kategoria 
+                              FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
 
     if not df.empty:
-        df['Wartość'] = df['ilosc'] * df['cena']
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Łączna liczba SKU", len(df))
+        c2.metric("Suma jednostek magazynowych", int(df['ilosc'].sum()))
+        c3.metric("Wartość inwentarza", f"{(df['ilosc'] * df['cena']).sum():,.2f} PLN")
         
-        # Statystyki w kartach
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("SKU w Bazie", len(df))
-        c2.metric("Suma Jednostek", int(df['ilosc'].sum()))
-        c3.metric("Wycena Netto", f"{df['Wartość'].sum():,.2f} zł")
-        c4.metric("Średnia Cena", f"{df['cena'].mean():,.2f} zł")
-        
-        st.divider()
-        
-        col_left, col_right = st.columns([2, 1])
-        with col_left:
-            st.subheader("📋 Inwentaryzacja Bieżąca")
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            
-            csv = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("💾 Eksportuj dane do CSV", csv, "magazyn_raport.csv", "text/csv")
-            
-        with col_right:
-            st.subheader("📊 Rozkład Ilościowy")
-            st.bar_chart(df.set_index('nazwa')['ilosc'])
+        st.subheader("Aktualne poziomy zapasów")
+        st.bar_chart(df.set_index('nazwa')['ilosc'])
     else:
-        st.warning("⚠️ Brak danych. Skonfiguruj kategorie i dodaj pierwsze towary.")
+        st.info("System gotowy do pracy. Brak zarejestrowanych towarów.")
 
-# --- MODUŁ 2: ZARZĄDZANIE TOWAREM ---
-elif menu == "📥 Zarządzanie Towarem":
-    st.title("📥 Operacje Towarowe")
+elif st.session_state.menu == "Wyszukiwarka Zasobów":
+    st.title("Wyszukiwarka Zasobów")
+    query_search = st.text_input("Wprowadź nazwę lub fragment nazwy towaru")
     
-    tab_view, tab_add = st.tabs(["🔍 Przegląd i Usuwanie", "✨ Nowa Dostawa"])
+    df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, k.nazwa as kategoria, p.data_aktualizacji 
+                              FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
     
-    with tab_add:
-        kat_df = pd.read_sql_query("SELECT * FROM kategorie", get_connection())
-        if kat_df.empty:
-            st.error("Wymagana konfiguracja kategorii przed przyjęciem towaru!")
-        else:
-            with st.form("add_product_nexus"):
-                st.subheader("Rejestracja Produktu")
-                c1, c2 = st.columns(2)
-                nazwa = c1.text_input("Nazwa artykułu")
-                kat = c1.selectbox("Kategoria docelowa", kat_df['nazwa'])
-                ilosc = c2.number_input("Ilość (szt.)", min_value=0, step=1)
-                cena = c2.number_input("Cena jednostkowa (zł)", min_value=0.0, step=0.01)
-                
-                if st.form_submit_button("ZATWIERDŹ PRZYJĘCIE"):
-                    if nazwa:
-                        kat_id = int(kat_df[kat_df['nazwa'] == kat]['id'].values[0])
-                        with get_connection() as conn:
-                            conn.execute("INSERT INTO produkty (nazwa, ilosc, cena, kategoria_id, data_aktualizacji) VALUES (?,?,?,?,?)",
-                                        (nazwa, ilosc, cena, kat_id, datetime.now().strftime("%d.%m.%Y %H:%M")))
-                        st.success(f"Produkt {nazwa} wprowadzony do systemu.")
-                        st.rerun()
+    if query_search:
+        df = df[df['nazwa'].str.contains(query_search, case=False)]
+    
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
-    with tab_view:
-        inv = pd.read_sql_query("SELECT nazwa, ilosc FROM produkty", get_connection())
-        if not inv.empty:
-            st.subheader("Usuwanie z ewidencji")
-            item_to_del = st.selectbox("Wybierz pozycję:", inv['nazwa'])
-            if st.button("USUŃ POZYCJĘ", type="primary"):
-                with get_connection() as conn:
-                    conn.execute("DELETE FROM produkty WHERE nazwa = ?", (item_to_del,))
-                st.rerun()
+elif st.session_state.menu == "Rejestracja Dostaw":
+    st.title("Rejestracja Dostaw")
+    
+    kat_df = pd.read_sql_query("SELECT * FROM kategorie", get_connection())
+    if kat_df.empty:
+        st.error("Przed rejestracją towaru należy zdefiniować kategorie w module Konfiguracja.")
+    else:
+        with st.form("delivery_form"):
+            col1, col2 = st.columns(2)
+            nazwa = col1.text_input("Nazwa artykułu")
+            kat = col1.selectbox("Kategoria", kat_df['nazwa'])
+            ilosc = col2.number_input("Liczba jednostek", min_value=0, step=1)
+            cena = col2.number_input("Cena jednostkowa netto", min_value=0.0, step=0.01)
             
-            st.divider()
-            st.subheader("Monitor Stanów Niskich")
-            for _, row in inv.iterrows():
-                if row['ilosc'] < 5:
-                    st.markdown(f"<div class='status-card' style='border-left: 5px solid #ff4b4b;'>⚠️ <b>{row['nazwa']}</b> - Niski stan: {row['ilosc']} szt.</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div class='status-card'>✅ {row['nazwa']} - Stan: {row['ilosc']} szt.</div>", unsafe_allow_html=True)
-        else:
-            st.info("Brak towarów w ewidencji.")
+            if st.form_submit_button("Zatwierdź dokument dostawy"):
+                if nazwa:
+                    kat_id = int(kat_df[kat_df['nazwa'] == kat]['id'].values[0])
+                    with get_connection() as conn:
+                        conn.execute("INSERT INTO produkty (nazwa, ilosc, cena, kategoria_id, data_aktualizacji) VALUES (?,?,?,?,?)",
+                                    (nazwa, ilosc, cena, kat_id, datetime.now().strftime("%Y-%m-%d %H:%M")))
+                    st.success(f"Pomyślnie zarejestrowano: {nazwa}")
+                    st.rerun()
 
-# --- MODUŁ 3: KONFIGURACJA ---
-elif menu == "⚙️ Konfiguracja Bazowa":
-    st.title("⚙️ Parametry Systemu")
+elif st.session_state.menu == "Raport Finansowy":
+    st.title("Raport Finansowy")
+    df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, (p.ilosc * p.cena) as suma, k.nazwa as kategoria 
+                              FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
     
-    l, r = st.columns(2)
-    with l:
-        st.subheader("Definiowanie Kategorii")
-        n_kat = st.text_input("Nazwa nowej grupy")
-        if st.button("DODAJ GRUPĘ"):
-            if n_kat:
+    if not df.empty:
+        st.subheader("Podsumowanie wartości grup towarowych")
+        fin_kat = df.groupby('kategoria')['suma'].sum()
+        st.area_chart(fin_kat)
+        
+        st.subheader("Szczegółowe zestawienie kosztowe")
+        st.table(df)
+    else:
+        st.warning("Brak danych do generowania raportu.")
+
+elif st.session_state.menu == "Konfiguracja Kategorii":
+    st.title("Konfiguracja Kategorii")
+    
+    col_input, col_table = st.columns(2)
+    with col_input:
+        nowa_kat = st.text_input("Nazwa nowej grupy towarowej")
+        if st.button("Dodaj grupę do rejestru"):
+            if nowa_kat:
                 try:
                     with get_connection() as conn:
-                        conn.execute("INSERT INTO kategorie (nazwa) VALUES (?)", (n_kat,))
-                    st.success(f"Dodano: {n_kat}")
+                        conn.execute("INSERT INTO kategorie (nazwa) VALUES (?)", (nowa_kat,))
+                    st.success("Kategoria została dodana.")
                     st.rerun()
                 except:
-                    st.error("Kategoria już istnieje.")
+                    st.error("Błąd: Dana grupa już istnieje w systemie.")
     
-    with r:
-        st.subheader("Aktywne Grupy")
+    with col_table:
         kats = pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection())
-        st.table(kats)
+        st.dataframe(kats, use_container_width=True)
