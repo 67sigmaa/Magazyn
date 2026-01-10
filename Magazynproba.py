@@ -99,4 +99,56 @@ elif menu == "📦 Asortyment":
     
     with tab_add:
         kategorie_df = pd.read_sql_query("SELECT * FROM kategorie", get_connection())
-        if kategorie
+        if kategorie_df.empty:
+            st.error("Błąd: Najpierw zdefiniuj kategorie w ustawieniach!")
+        else:
+            with st.form("add_form"):
+                c1, c2 = st.columns(2)
+                nazwa = c1.text_input("Nazwa produktu")
+                kat = c1.selectbox("Kategoria", kategorie_df['nazwa'])
+                ilosc = c2.number_input("Ilość", min_value=0, step=1)
+                cena = c2.number_input("Cena netto (zł)", min_value=0.0, step=0.01)
+                
+                if st.form_submit_button("✅ Dodaj produkt do bazy"):
+                    if nazwa:
+                        kat_id = int(kategorie_df[kategorie_df['nazwa'] == kat]['id'].values[0])
+                        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        wykonaj_sql("INSERT INTO produkty (nazwa, ilosc, cena_netto, kategoria_id, data_aktualizacji) VALUES (?,?,?,?,?)",
+                                   (nazwa, ilosc, cena, kat_id, now))
+                        st.success(f"Dodano: {nazwa}")
+                        st.rerun()
+    
+    with tab_list:
+        df_list = pd.read_sql_query("SELECT id, nazwa, ilosc FROM produkty", get_connection())
+        if not df_list.empty:
+            st.write("Wybierz produkt, aby go usunąć:")
+            produkt_do_usuniecia = st.selectbox("Wybierz produkt", df_list['nazwa'])
+            if st.button("🗑️ Usuń wybrany produkt", type="primary"):
+                wykonaj_sql("DELETE FROM produkty WHERE nazwa = ?", (produkt_do_usuniecia,))
+                st.toast(f"Usunięto {produkt_do_usuniecia}")
+                st.rerun()
+        else:
+            st.info("Brak produktów do wyświetlenia.")
+
+# --- MODUŁ 3: USTAWIENIA KATEGORII ---
+elif menu == "⚙️ Ustawienia Kategorii":
+    st.title("⚙️ Konfiguracja Systemu")
+    
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        st.subheader("Nowa Kategoria")
+        nowa_kat = st.text_input("Nazwa (np. Meble, Akcesoria)")
+        if st.button("Dodaj kategorię"):
+            if nowa_kat:
+                try:
+                    wykonaj_sql("INSERT INTO kategorie (nazwa) VALUES (?)", (nowa_kat,))
+                    st.success("Dodano!")
+                    st.rerun()
+                except:
+                    st.error("Ta kategoria już istnieje!")
+
+    with col_b:
+        st.subheader("Istniejące Kategorie")
+        kat_df = pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection())
+        st.table(kat_df)
