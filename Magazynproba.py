@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import psycopg2 # Zmienione z sqlite3
+import psycopg2
 from datetime import datetime
 
 # --- KONFIGURACJA UI ---
@@ -33,13 +33,12 @@ st.markdown("""
 
 # --- BAZA DANYCH (SUPABASE) ---
 def get_connection():
-    # Pobiera URL z st.secrets (zgodnie z Twoją prośbą o secrets)
+    # Pobiera dane logowania do bazy z pliku secrets.toml
     return psycopg2.connect(st.secrets["database"]["url"])
 
 def init_db():
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # W PostgreSQL używamy SERIAL zamiast AUTOINCREMENT
             cur.execute('''CREATE TABLE IF NOT EXISTS kategorie (
                             id SERIAL PRIMARY KEY, 
                             nazwa TEXT UNIQUE, 
@@ -55,13 +54,12 @@ def init_db():
 
 init_db()
 
-# --- NAWIGACJA ---
+# --- NAWIGACJA (BEZ LOGOWANIA) ---
 if 'menu' not in st.session_state:
     st.session_state.menu = "Wyszukiwarka Zasobów"
 
 with st.sidebar:
     st.markdown("<h2 style='text-align: center; color: #58a6ff;'>KONTROLA MAGAZYNU</h2>", unsafe_allow_html=True)
-    if st.button("Pulpit Manedżerski"): st.session_state.menu = "Pulpit Manedżerski"
     if st.button("Wyszukiwarka Zasobów"): st.session_state.menu = "Wyszukiwarka Zasobów"
     if st.button("Rejestracja Dostaw"): st.session_state.menu = "Rejestracja Dostaw"
     if st.button("Raport Finansowy"): st.session_state.menu = "Raport Finansowy"
@@ -69,27 +67,7 @@ with st.sidebar:
 
 # --- MODUŁY ---
 
-if st.session_state.menu == "Pulpit Manedżerski":
-    st.title("Pulpit Manedżerski")
-    with get_connection() as conn:
-        df = pd.read_sql_query('''SELECT p.nazwa, p.liczba, p.cena, k.nazwa as kategoria 
-                                  FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', conn)
-    if not df.empty:
-        low_stock = df[df['liczba'] < 5]
-        if not low_stock.empty:
-            st.markdown(f'<div class="alert-box">⚠️ ALARM: {len(low_stock)} produkty wymagają domówienia!</div>', unsafe_allow_html=True)
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Liczba SKU", len(df))
-        c2.metric("Suma jednostek", int(df['liczba'].sum()))
-        c3.metric("Wycena inwentarza", f"{(df['liczba'] * df['cena']).sum():,.2f} PLN")
-        
-        st.subheader("Szybki podgląd stanów")
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    else:
-        st.info("Brak towarów w bazie Supabase.")
-
-elif st.session_state.menu == "Wyszukiwarka Zasobów":
+if st.session_state.menu == "Wyszukiwarka Zasobów":
     st.title("Zarządzanie Zasobami")
     with get_connection() as conn:
         df = pd.read_sql_query('''SELECT p.id, p.nazwa, p.liczba, p.cena, k.nazwa as kategoria 
@@ -115,7 +93,6 @@ elif st.session_state.menu == "Wyszukiwarka Zasobów":
             if st.button("Zatwierdź Wydanie"):
                 with get_connection() as conn:
                     with conn.cursor() as cur:
-                        # W PostgreSQL używamy %s zamiast ?
                         cur.execute("UPDATE produkty SET liczba = %s, data_aktualizacji = %s WHERE nazwa = %s", 
                                    (int(dostepna_ilosc - ilosc_wydania), datetime.now().strftime("%d.%m.%Y %H:%M"), wybrany_produkt))
                     conn.commit()
