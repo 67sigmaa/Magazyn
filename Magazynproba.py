@@ -56,7 +56,7 @@ def get_connection():
 def init_db():
     with get_connection() as conn:
         cur = conn.cursor()
-        cur.execute('PRAGMA foreign_keys = ON;') # Włączenie obsługi kluczy obcych
+        cur.execute('PRAGMA foreign_keys = ON;')
         cur.execute('CREATE TABLE IF NOT EXISTS kategorie (id INTEGER PRIMARY KEY AUTOINCREMENT, nazwa TEXT UNIQUE)')
         cur.execute('''CREATE TABLE IF NOT EXISTS produkty (
                         id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -101,8 +101,6 @@ if st.session_state.menu == "Pulpit Manedżerski":
 
 elif st.session_state.menu == "Wyszukiwarka Zasobów":
     st.title("Wyszukiwarka i Usuwanie")
-    
-    # Podgląd danych
     df = pd.read_sql_query('''SELECT p.id, p.nazwa, p.ilosc, p.cena, k.nazwa as kategoria FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
     
     tab1, tab2 = st.tabs(["🔎 Szukaj", "🗑️ Usuń Produkt"])
@@ -172,7 +170,6 @@ elif st.session_state.menu == "Raport Finansowy":
 
 elif st.session_state.menu == "Konfiguracja Kategorii":
     st.title("Zarządzanie Kategoriami")
-    
     col_add, col_del = st.columns(2)
     
     with col_add:
@@ -186,7 +183,8 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
                     conn.commit()
                     st.success(f"Dodano {nowa_kat}")
                     st.rerun()
-                except: st.error("Błąd: Taka kategoria już istnieje")
+                except:
+                    pass  # Tutaj usunięto st.error (ignoruje duplikaty)
                 finally: conn.close()
 
     with col_del:
@@ -196,7 +194,6 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
             kat_to_del = st.selectbox("Wybierz grupę do usunięcia", kats_df['nazwa'])
             if st.button("🗑️ Usuń grupę"):
                 conn = get_connection()
-                # Sprawdzenie czy kategoria jest pusta
                 kid = int(kats_df[kats_df['nazwa'] == kat_to_del]['id'].values[0])
                 has_products = conn.execute("SELECT id FROM produkty WHERE kategoria_id = ?", (kid,)).fetchone()
                 
