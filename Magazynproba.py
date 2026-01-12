@@ -209,4 +209,3 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
     st.divider()
     st.subheader("Aktualna lista kategorii")
     st.table(pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection()))
-popraw na bialy kolory podpisow i tabel
