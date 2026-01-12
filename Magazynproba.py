@@ -12,18 +12,13 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Tło aplikacji */
     .stApp { background-color: #0d1117; color: #ffffff; }
-    
-    /* Pasek boczny */
     [data-testid="stSidebar"] { background-color: #161b22; border-right: 1px solid #30363d; }
     
-    /* Wymuszenie białego koloru dla tekstów, etykiet i tabel */
     label, p, span, .stMarkdown, [data-testid="stWidgetLabel"] p, .stTable, table, td, th {
         color: #ffffff !important;
     }
     
-    /* Styl przycisków */
     .stButton>button {
         width: 100%; border-radius: 6px; background-color: #21262d;
         color: #f0f6fc !important; border: 1px solid #8b949e; text-align: left;
@@ -31,18 +26,14 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #30363d; border-color: #58a6ff; color: #58a6ff !important; }
     
-    /* Nagłówki */
     h1, h2, h3 { color: #58a6ff !important; margin-bottom: 20px; }
     
-    /* Metryki na pulpicie */
     div[data-testid="stMetric"] { background-color: #30363d; padding: 20px; border-radius: 10px; border: 2px solid #8b949e; }
     [data-testid="stMetricLabel"] { color: #ffffff !important; font-size: 1.1rem !important; }
     [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: bold !important; }
     
-    /* Alerty */
     .alert-box { background-color: #442726; border: 2px solid #f85149; padding: 15px; border-radius: 8px; color: #ff7b72; margin-bottom: 20px; font-weight: bold; }
     
-    /* Styl tabel */
     thead tr th {
         background-color: #21262d !important;
         color: #58a6ff !important;
@@ -123,10 +114,10 @@ if st.session_state.menu == "Pulpit Manedżerski":
         st.info("Brak towarów w bazie.")
 
 elif st.session_state.menu == "Wyszukiwarka Zasobów":
-    st.title("Wyszukiwarka i Usuwanie")
+    st.title("Zarządzanie Zasobami")
     df = pd.read_sql_query('''SELECT p.id, p.nazwa, p.ilosc, p.cena, k.nazwa as kategoria FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
     
-    tab1, tab2 = st.tabs(["🔎 Szukaj", "🗑️ Usuń Produkt"])
+    tab1, tab2, tab3 = st.tabs(["🔎 Szukaj", "📤 Wydawanie Towaru", "🗑️ Usuń Produkt"])
     
     with tab1:
         c1, c2 = st.columns([2, 1])
@@ -139,6 +130,31 @@ elif st.session_state.menu == "Wyszukiwarka Zasobów":
         st.dataframe(filtered_df.drop(columns=['id']), use_container_width=True, hide_index=True)
 
     with tab2:
+        if not df.empty:
+            st.subheader("Wydaj towar z magazynu")
+            wybrany_produkt = st.selectbox("Wybierz produkt do wydania", df['nazwa'].tolist())
+            dostepna_ilosc = df[df['nazwa'] == wybrany_produkt]['ilosc'].values[0]
+            
+            st.info(f"Aktualny stan dla **{wybrany_produkt}**: {dostepna_ilosc} szt.")
+            
+            ilosc_wydania = st.number_input("Ilość do wydania", min_value=1, max_value=int(dostepna_ilosc) if dostepna_ilosc > 0 else 1, step=1)
+            
+            if st.button("Zatwierdź Wydanie"):
+                if dostepna_ilosc >= ilosc_wydania:
+                    conn = get_connection()
+                    nowa_ilosc = int(dostepna_ilosc - ilosc_wydania)
+                    conn.execute("UPDATE produkty SET ilosc = ?, data_aktualizacji = ? WHERE nazwa = ?", 
+                                 (nowa_ilosc, datetime.now().strftime("%d.%m.%Y %H:%M"), wybrany_produkt))
+                    conn.commit()
+                    conn.close()
+                    st.success(f"Wydano {ilosc_wydania} szt. produktu {wybrany_produkt}")
+                    st.rerun()
+                else:
+                    st.error("Niewystarczająca ilość towaru na magazynie!")
+        else:
+            st.info("Magazyn jest pusty.")
+
+    with tab3:
         if not df.empty:
             st.warning("Uwaga: Usunięcie produktu jest nieodwracalne.")
             prod_to_del = st.selectbox("Wybierz produkt do usunięcia", df['nazwa'].tolist())
