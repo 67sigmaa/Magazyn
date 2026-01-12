@@ -20,7 +20,7 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #30363d; border-color: #58a6ff; color: #58a6ff; }
     h1, h2, h3 { color: #58a6ff !important; margin-bottom: 20px; }
-    div[data-testid="stMetric"] { background-color: #30363d; padding: 20px; border-radius: 10px; border: 1px solid #8b949e; }
+    div[data-testid="stMetric"] { background-color: #30363d; padding: 20px; border-radius: 10px; border: 2px solid #8b949e; }
     .alert-box { background-color: #442726; border: 2px solid #f85149; padding: 15px; border-radius: 8px; color: #ff7b72; margin-bottom: 20px; font-weight: bold; }
     [data-testid="stMetricLabel"] { color: #c9d1d9 !important; font-size: 1.1rem !important; }
     [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: bold !important; }
@@ -150,13 +150,3 @@ elif st.session_state.menu == "Rejestracja Dostaw":
                         nowa_ilosc = existing[1] + ilosc
                         conn.execute("UPDATE produkty SET ilosc = ?, cena = ?, data_aktualizacji = ? WHERE id = ?", 
                                      (nowa_ilosc, cena, datetime.now().strftime("%d.%m.%Y %H:%M"), existing[0]))
-                    else:
-                        conn.execute("INSERT INTO produkty (nazwa, ilosc, cena, kategoria_id, data_aktualizacji) VALUES (?,?,?,?,?)",
-                                    (nazwa, ilosc, cena, kid, datetime.now().strftime("%d.%m.%Y %H:%M")))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"Zapisano: {nazwa}")
-
-elif st.session_state.menu == "Raport Finansowy":
-    st.title("Raport Finansowy")
-    df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, (p.ilosc * p.cena) as suma, k.nazwa as kategoria FROM produkty p JOIN kategorie k ON p.kategoria_id =
