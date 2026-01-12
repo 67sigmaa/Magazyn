@@ -150,3 +150,62 @@ elif st.session_state.menu == "Rejestracja Dostaw":
                         nowa_ilosc = existing[1] + ilosc
                         conn.execute("UPDATE produkty SET ilosc = ?, cena = ?, data_aktualizacji = ? WHERE id = ?", 
                                      (nowa_ilosc, cena, datetime.now().strftime("%d.%m.%Y %H:%M"), existing[0]))
+                    else:
+                        conn.execute("INSERT INTO produkty (nazwa, ilosc, cena, kategoria_id, data_aktualizacji) VALUES (?,?,?,?,?)",
+                                    (nazwa, ilosc, cena, kid, datetime.now().strftime("%d.%m.%Y %H:%M")))
+                    conn.commit()
+                    conn.close()
+                    st.success(f"Zapisano: {nazwa}")
+
+elif st.session_state.menu == "Raport Finansowy":
+    st.title("Raport Finansowy")
+    df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, (p.ilosc * p.cena) as suma, k.nazwa as kategoria FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
+    if not df.empty:
+        total_val = df['suma'].sum()
+        st.metric("Całkowita wycena netto", f"{total_val:,.2f} PLN")
+        kat_stats = df.groupby('kategoria')['suma'].agg(['sum', 'count']).rename(columns={'sum': 'Suma PLN', 'count': 'Liczba SKU'})
+        st.table(kat_stats)
+    else:
+        st.warning("Brak danych.")
+
+elif st.session_state.menu == "Konfiguracja Kategorii":
+    st.title("Zarządzanie Kategoriami")
+    col_add, col_del = st.columns(2)
+    
+    with col_add:
+        st.subheader("Dodaj nową")
+        nowa_kat = st.text_input("Nazwa grupy")
+        if st.button("➕ Dodaj grupę"):
+            if nowa_kat:
+                conn = get_connection()
+                try:
+                    conn.execute("INSERT INTO kategorie (nazwa) VALUES (?)", (nowa_kat,))
+                    conn.commit()
+                    st.success(f"Dodano {nowa_kat}")
+                    st.rerun()
+                except:
+                    pass  # Tutaj usunięto st.error (ignoruje duplikaty)
+                finally: conn.close()
+
+    with col_del:
+        st.subheader("Usuń istniejącą")
+        kats_df = pd.read_sql_query("SELECT * FROM kategorie", get_connection())
+        if not kats_df.empty:
+            kat_to_del = st.selectbox("Wybierz grupę do usunięcia", kats_df['nazwa'])
+            if st.button("🗑️ Usuń grupę"):
+                conn = get_connection()
+                kid = int(kats_df[kats_df['nazwa'] == kat_to_del]['id'].values[0])
+                has_products = conn.execute("SELECT id FROM produkty WHERE kategoria_id = ?", (kid,)).fetchone()
+                
+                if has_products:
+                    st.error("Nie można usunąć kategorii, która zawiera produkty!")
+                else:
+                    conn.execute("DELETE FROM kategorie WHERE id = ?", (kid,))
+                    conn.commit()
+                    st.success("Kategoria usunięta")
+                    st.rerun()
+                conn.close()
+    
+    st.divider()
+    st.subheader("Aktualna lista kategorii")
+    st.table(pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection()))
