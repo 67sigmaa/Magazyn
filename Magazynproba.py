@@ -33,28 +33,33 @@ st.markdown("""
 
 # --- BAZA DANYCH (SUPABASE) ---
 def get_connection():
-    # Pobiera dane logowania do bazy z pliku secrets.toml
+    # Pobiera URI z panelu Secrets w Streamlit Cloud
     return psycopg2.connect(st.secrets["database"]["url"])
 
 def init_db():
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute('''CREATE TABLE IF NOT EXISTS kategorie (
+            # Poprawione nazwy tabel zgodnie ze zdjęciem (Kategoria przez duże K)
+            cur.execute('''CREATE TABLE IF NOT EXISTS "Kategoria" (
                             id SERIAL PRIMARY KEY, 
                             nazwa TEXT UNIQUE, 
                             opis TEXT)''')
-            cur.execute('''CREATE TABLE IF NOT EXISTS produkty (
+            cur.execute('''CREATE TABLE IF NOT EXISTS "produkty" (
                             id SERIAL PRIMARY KEY, 
                             nazwa TEXT, 
                             liczba INTEGER, 
-                            cena REAL, 
-                            kategoria_id INTEGER REFERENCES kategorie(id),
+                            cena NUMERIC, 
+                            kategoria_id INTEGER REFERENCES "Kategoria"(id),
                             data_aktualizacji TEXT)''')
         conn.commit()
 
-init_db()
+# Inicjalizacja przy starcie
+try:
+    init_db()
+except Exception as e:
+    st.error(f"Problem z połączeniem: {e}")
 
-# --- NAWIGACJA (BEZ LOGOWANIA) ---
+# --- NAWIGACJA ---
 if 'menu' not in st.session_state:
     st.session_state.menu = "Wyszukiwarka Zasobów"
 
@@ -69,50 +74,53 @@ with st.sidebar:
 
 if st.session_state.menu == "Wyszukiwarka Zasobów":
     st.title("Zarządzanie Zasobami")
-    with get_connection() as conn:
-        df = pd.read_sql_query('''SELECT p.id, p.nazwa, p.liczba, p.cena, k.nazwa as kategoria 
-                                  FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', conn)
-    
-    tab1, tab2, tab3 = st.tabs(["🔎 Szukaj", "📤 Wydawanie Towaru", "🗑️ Usuń Produkt"])
-    
-    with tab1:
-        c1, c2 = st.columns([2, 1])
-        qs = c1.text_input("Wyszukaj po nazwie...")
-        min_p = c2.number_input("Cena od...", min_value=0.0)
-        filtered_df = df.copy()
-        if qs: filtered_df = filtered_df[filtered_df['nazwa'].str.contains(qs, case=False)]
-        filtered_df = filtered_df[filtered_df['cena'] >= min_p]
-        st.dataframe(filtered_df.drop(columns=['id']), use_container_width=True, hide_index=True)
+    try:
+        with get_connection() as conn:
+            df = pd.read_sql_query('''SELECT p.id, p.nazwa, p.liczba, p.cena, k.nazwa as kategoria 
+                                      FROM "produkty" p JOIN "Kategoria" k ON p.kategoria_id = k.id''', conn)
+        
+        tab1, tab2, tab3 = st.tabs(["🔎 Szukaj", "📤 Wydawanie Towaru", "🗑️ Usuń Produkt"])
+        
+        with tab1:
+            c1, c2 = st.columns([2, 1])
+            qs = c1.text_input("Wyszukaj po nazwie...")
+            min_p = c2.number_input("Cena od...", min_value=0.0)
+            filtered_df = df.copy()
+            if qs: filtered_df = filtered_df[filtered_df['nazwa'].str.contains(qs, case=False)]
+            filtered_df = filtered_df[filtered_df['cena'].astype(float) >= min_p]
+            st.dataframe(filtered_df.drop(columns=['id']), use_container_width=True, hide_index=True)
 
-    with tab2:
-        if not df.empty:
-            wybrany_produkt = st.selectbox("Wybierz produkt", df['nazwa'].tolist())
-            dostepna_ilosc = df[df['nazwa'] == wybrany_produkt]['liczba'].values[0]
-            st.info(f"Stan: {dostepna_ilosc} szt.")
-            ilosc_wydania = st.number_input("Ilość", min_value=1, max_value=int(dostepna_ilosc) if dostepna_ilosc > 0 else 1)
-            if st.button("Zatwierdź Wydanie"):
-                with get_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute("UPDATE produkty SET liczba = %s, data_aktualizacji = %s WHERE nazwa = %s", 
-                                   (int(dostepna_ilosc - ilosc_wydania), datetime.now().strftime("%d.%m.%Y %H:%M"), wybrany_produkt))
-                    conn.commit()
-                st.success("Wydano towar!")
-                st.rerun()
+        with tab2:
+            if not df.empty:
+                wybrany_produkt = st.selectbox("Wybierz produkt", df['nazwa'].tolist())
+                dostepna_ilosc = df[df['nazwa'] == wybrany_produkt]['liczba'].values[0]
+                st.info(f"Stan: {dostepna_ilosc} szt.")
+                ilosc_wydania = st.number_input("Ilość", min_value=1, max_value=int(dostepna_ilosc) if dostepna_ilosc > 0 else 1)
+                if st.button("Zatwierdź Wydanie"):
+                    with get_connection() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute('UPDATE "produkty" SET liczba = %s, data_aktualizacji = %s WHERE nazwa = %s', 
+                                       (int(dostepna_ilosc - ilosc_wydania), datetime.now().strftime("%d.%m.%Y %H:%M"), wybrany_produkt))
+                        conn.commit()
+                    st.success("Wydano towar!")
+                    st.rerun()
 
-    with tab3:
-        if not df.empty:
-            prod_to_del = st.selectbox("Usuń produkt", df['nazwa'].tolist())
-            if st.button("Potwierdź"):
-                with get_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute("DELETE FROM produkty WHERE nazwa = %s", (prod_to_del,))
-                    conn.commit()
-                st.rerun()
+        with tab3:
+            if not df.empty:
+                prod_to_del = st.selectbox("Usuń produkt", df['nazwa'].tolist())
+                if st.button("Potwierdź"):
+                    with get_connection() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute('DELETE FROM "produkty" WHERE nazwa = %s', (prod_to_del,))
+                        conn.commit()
+                    st.rerun()
+    except Exception as e:
+        st.warning("Dodaj najpierw kategorie i produkty, aby korzystać z wyszukiwarki.")
 
 elif st.session_state.menu == "Rejestracja Dostaw":
     st.title("Przyjęcie Towaru")
     with get_connection() as conn:
-        kat_df = pd.read_sql_query("SELECT * FROM kategorie", conn)
+        kat_df = pd.read_sql_query('SELECT * FROM "Kategoria"', conn)
     
     if kat_df.empty:
         st.error("Najpierw dodaj kategorie!")
@@ -127,24 +135,25 @@ elif st.session_state.menu == "Rejestracja Dostaw":
                 kid = int(kat_df[kat_df['nazwa'] == kat]['id'].values[0])
                 with get_connection() as conn:
                     with conn.cursor() as cur:
-                        cur.execute("SELECT id, liczba FROM produkty WHERE nazwa = %s", (nazwa,))
+                        cur.execute('SELECT id, liczba FROM "produkty" WHERE nazwa = %s', (nazwa,))
                         existing = cur.fetchone()
                         if existing:
-                            cur.execute("UPDATE produkty SET liczba = %s, cena = %s, data_aktualizacji = %s WHERE id = %s", 
+                            cur.execute('UPDATE "produkty" SET liczba = %s, cena = %s, data_aktualizacji = %s WHERE id = %s', 
                                        (existing[1] + ilosc, cena, datetime.now().strftime("%d.%m.%Y %H:%M"), existing[0]))
                         else:
-                            cur.execute("INSERT INTO produkty (nazwa, liczba, cena, kategoria_id, data_aktualizacji) VALUES (%s,%s,%s,%s,%s)",
+                            cur.execute('INSERT INTO "produkty" (nazwa, liczba, cena, kategoria_id, data_aktualizacji) VALUES (%s,%s,%s,%s,%s)',
                                        (nazwa, ilosc, cena, kid, datetime.now().strftime("%d.%m.%Y %H:%M")))
                     conn.commit()
+                st.success("Dodano do bazy!")
                 st.rerun()
 
 elif st.session_state.menu == "Raport Finansowy":
     st.title("Raport Finansowy")
     with get_connection() as conn:
         df = pd.read_sql_query('''SELECT p.nazwa, p.liczba, p.cena, (p.liczba * p.cena) as suma, k.nazwa as kategoria 
-                                  FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', conn)
+                                  FROM "produkty" p JOIN "Kategoria" k ON p.kategoria_id = k.id''', conn)
     if not df.empty:
-        st.metric("Wycena (Supabase)", f"{df['suma'].sum():,.2f} PLN")
+        st.metric("Wycena (Supabase)", f"{float(df['suma'].sum()):,.2f} PLN")
         st.table(df.groupby('kategoria')['suma'].agg(['sum', 'count']))
 
 elif st.session_state.menu == "Konfiguracja Kategorii":
@@ -156,18 +165,18 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
         if st.button("➕ Dodaj"):
             with get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("INSERT INTO kategorie (nazwa, opis) VALUES (%s,%s)", (nowa_kat, opis_kat))
+                    cur.execute('INSERT INTO "Kategoria" (nazwa, opis) VALUES (%s,%s)', (nowa_kat, opis_kat))
                 conn.commit()
             st.rerun()
 
     with col_del:
         with get_connection() as conn:
-            kats_df = pd.read_sql_query("SELECT * FROM kategorie", conn)
+            kats_df = pd.read_sql_query('SELECT * FROM "Kategoria"', conn)
         if not kats_df.empty:
             kat_to_del = st.selectbox("Usuń grupę", kats_df['nazwa'])
             if st.button("🗑️ Usuń"):
                 with get_connection() as conn:
                     with conn.cursor() as cur:
-                        cur.execute("DELETE FROM kategorie WHERE nazwa = %s", (kat_to_del,))
+                        cur.execute('DELETE FROM "Kategoria" WHERE nazwa = %s', (kat_to_del,))
                     conn.commit()
                 st.rerun()
