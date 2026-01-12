@@ -53,7 +53,7 @@ if not st.session_state.auth:
     login()
     st.stop()
 
-# --- BAZA DANYCH (ZGODNA ZE SCHEMATEM) ---
+# --- BAZA DANYCH ---
 def get_connection():
     return sqlite3.connect('magazyn_finalny.db', check_same_thread=False)
 
@@ -61,12 +61,10 @@ def init_db():
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute('PRAGMA foreign_keys = ON;')
-        # Tabela Kategorie wg schematu (id, nazwa, opis)
         cur.execute('''CREATE TABLE IF NOT EXISTS kategorie (
                         id INTEGER PRIMARY KEY AUTOINCREMENT, 
                         nazwa TEXT UNIQUE, 
                         opis TEXT)''')
-        # Tabela Produkty wg schematu (id, nazwa, liczba, cena, kategoria_id)
         cur.execute('''CREATE TABLE IF NOT EXISTS produkty (
                         id INTEGER PRIMARY KEY AUTOINCREMENT, 
                         nazwa TEXT, 
@@ -75,6 +73,13 @@ def init_db():
                         kategoria_id INTEGER,
                         data_aktualizacji TEXT,
                         FOREIGN KEY (kategoria_id) REFERENCES kategorie (id))''')
+        try:
+            cur.execute("SELECT ilosc FROM produkty LIMIT 1")
+            cur.execute("UPDATE produkty SET liczba = ilosc WHERE liczba IS NULL")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
 init_db()
 
 # --- NAWIGACJA ---
@@ -108,6 +113,9 @@ if st.session_state.menu == "Pulpit Manedżerski":
         c1.metric("Liczba SKU", len(df))
         c2.metric("Suma jednostek", int(df['liczba'].sum()))
         c3.metric("Wycena inwentarza", f"{(df['liczba'] * df['cena']).sum():,.2f} PLN")
+        
+        st.subheader("Szybki podgląd stanów")
+        st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("Brak towarów w bazie.")
 
@@ -186,6 +194,7 @@ elif st.session_state.menu == "Rejestracja Dostaw":
                     conn.commit()
                     conn.close()
                     st.success(f"Zapisano: {nazwa}")
+                    st.rerun()
 
 elif st.session_state.menu == "Raport Finansowy":
     st.title("Raport Finansowy")
@@ -202,17 +211,21 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
     with col_add:
         st.subheader("Dodaj nową")
         nowa_kat = st.text_input("Nazwa grupy")
-        opis_kat = st.text_area("Opis grupy (opis)")
+        opis_kat = st.text_area("Opis grupy")
         if st.button("➕ Dodaj grupę"):
             if nowa_kat:
                 conn = get_connection()
                 try:
                     conn.execute("INSERT INTO kategorie (nazwa, opis) VALUES (?,?)", (nowa_kat, opis_kat))
                     conn.commit()
-                    st.success("Dodano kategorię")
+                    st.success(f"Pomyślnie dodano kategorię: {nowa_kat}")
                     st.rerun()
-                except: st.error("Kategoria już istnieje")
-                finally: conn.close()
+                except sqlite3.IntegrityError:
+                    st.error(f"Błąd: Kategoria '{nowa_kat}' już istnieje w bazie danych.")
+                finally:
+                    conn.close()
+            else:
+                st.warning("Proszę wpisać nazwę grupy.")
 
     with col_del:
         st.subheader("Usuń istniejącą")
@@ -223,7 +236,7 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
                 conn = get_connection()
                 kid = int(kats_df[kats_df['nazwa'] == kat_to_del]['id'].values[0])
                 if conn.execute("SELECT id FROM produkty WHERE kategoria_id = ?", (kid,)).fetchone():
-                    st.error("Kategoria zawiera produkty!")
+                    st.error("Nie można usunąć: Kategoria zawiera produkty!")
                 else:
                     conn.execute("DELETE FROM kategorie WHERE id = ?", (kid,))
                     conn.commit()
