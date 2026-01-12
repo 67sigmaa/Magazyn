@@ -67,7 +67,6 @@ def init_db():
                         nazwa TEXT UNIQUE, 
                         opis TEXT)''')
         # Tabela Produkty wg schematu (id, nazwa, liczba, cena, kategoria_id)
-        # Dodatkowo zachowujemy data_aktualizacji dla logistyki
         cur.execute('''CREATE TABLE IF NOT EXISTS produkty (
                         id INTEGER PRIMARY KEY AUTOINCREMENT, 
                         nazwa TEXT, 
@@ -151,7 +150,7 @@ elif st.session_state.menu == "Wyszukiwarka Zasobów":
     with tab3:
         if not df.empty:
             st.warning("Uwaga: Usunięcie produktu jest nieodwracalne.")
-            prod_to_del = st.selectbox("Wybierz produkt do całkowitego usunięcia", df['nazwa'].tolist())
+            prod_to_del = st.selectbox("Wybierz produkt do usunięcia", df['nazwa'].tolist())
             if st.button("Potwierdź usunięcie"):
                 conn = get_connection()
                 conn.execute("DELETE FROM produkty WHERE nazwa = ?", (prod_to_del,))
@@ -203,7 +202,7 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
     with col_add:
         st.subheader("Dodaj nową")
         nowa_kat = st.text_input("Nazwa grupy")
-        opis_kat = st.text_area("Opis grupy (opcjonalnie)")
+        opis_kat = st.text_area("Opis grupy (opis)")
         if st.button("➕ Dodaj grupę"):
             if nowa_kat:
                 conn = get_connection()
@@ -230,3 +229,7 @@ elif st.session_state.menu == "Konfiguracja Kategorii":
                     conn.commit()
                     st.rerun()
                 conn.close()
+    
+    st.divider()
+    st.subheader("Aktualna lista kategorii")
+    st.table(pd.read_sql_query("SELECT nazwa, opis FROM kategorie", get_connection()))
