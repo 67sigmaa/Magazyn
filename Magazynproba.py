@@ -20,7 +20,7 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #30363d; border-color: #58a6ff; color: #58a6ff; }
     h1, h2, h3 { color: #58a6ff !important; margin-bottom: 20px; }
-    div[data-testid="stMetric"] { background-color: #30363d; padding: 20px; border-radius: 10px; border: 2px solid #8b949e; }
+    div[data-testid="stMetric"] { background-color: #30363d; padding: 20px; border-radius: 10px; border: 1px solid #8b949e; }
     .alert-box { background-color: #442726; border: 2px solid #f85149; padding: 15px; border-radius: 8px; color: #ff7b72; margin-bottom: 20px; font-weight: bold; }
     [data-testid="stMetricLabel"] { color: #c9d1d9 !important; font-size: 1.1rem !important; }
     [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: bold !important; }
@@ -159,53 +159,4 @@ elif st.session_state.menu == "Rejestracja Dostaw":
 
 elif st.session_state.menu == "Raport Finansowy":
     st.title("Raport Finansowy")
-    df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, (p.ilosc * p.cena) as suma, k.nazwa as kategoria FROM produkty p JOIN kategorie k ON p.kategoria_id = k.id''', get_connection())
-    if not df.empty:
-        total_val = df['suma'].sum()
-        st.metric("Całkowita wycena netto", f"{total_val:,.2f} PLN")
-        kat_stats = df.groupby('kategoria')['suma'].agg(['sum', 'count']).rename(columns={'sum': 'Suma PLN', 'count': 'Liczba SKU'})
-        st.table(kat_stats)
-    else:
-        st.warning("Brak danych.")
-
-elif st.session_state.menu == "Konfiguracja Kategorii":
-    st.title("Zarządzanie Kategoriami")
-    col_add, col_del = st.columns(2)
-    
-    with col_add:
-        st.subheader("Dodaj nową")
-        nowa_kat = st.text_input("Nazwa grupy")
-        if st.button("➕ Dodaj grupę"):
-            if nowa_kat:
-                conn = get_connection()
-                try:
-                    conn.execute("INSERT INTO kategorie (nazwa) VALUES (?)", (nowa_kat,))
-                    conn.commit()
-                    st.success(f"Dodano {nowa_kat}")
-                    st.rerun()
-                except:
-                    pass  # Tutaj usunięto st.error (ignoruje duplikaty)
-                finally: conn.close()
-
-    with col_del:
-        st.subheader("Usuń istniejącą")
-        kats_df = pd.read_sql_query("SELECT * FROM kategorie", get_connection())
-        if not kats_df.empty:
-            kat_to_del = st.selectbox("Wybierz grupę do usunięcia", kats_df['nazwa'])
-            if st.button("🗑️ Usuń grupę"):
-                conn = get_connection()
-                kid = int(kats_df[kats_df['nazwa'] == kat_to_del]['id'].values[0])
-                has_products = conn.execute("SELECT id FROM produkty WHERE kategoria_id = ?", (kid,)).fetchone()
-                
-                if has_products:
-                    st.error("Nie można usunąć kategorii, która zawiera produkty!")
-                else:
-                    conn.execute("DELETE FROM kategorie WHERE id = ?", (kid,))
-                    conn.commit()
-                    st.success("Kategoria usunięta")
-                    st.rerun()
-                conn.close()
-    
-    st.divider()
-    st.subheader("Aktualna lista kategorii")
-    st.table(pd.read_sql_query("SELECT nazwa FROM kategorie", get_connection()))
+    df = pd.read_sql_query('''SELECT p.nazwa, p.ilosc, p.cena, (p.ilosc * p.cena) as suma, k.nazwa as kategoria FROM produkty p JOIN kategorie k ON p.kategoria_id =
