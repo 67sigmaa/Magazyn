@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 # --- KONFIGURACJA UI (POWRÓT DO WYSOKIEGO KONTRASTU) ---
-st.set_page_config(page_title="Magazyn Pro", layout="wide")
+st.set_page_config(page_title="Magazyn", layout="wide")
 
 st.markdown("""
     <style>
