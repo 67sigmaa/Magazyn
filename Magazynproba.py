@@ -31,28 +31,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGOWANIE ---
-if 'auth' not in st.session_state:
-    st.session_state.auth = False
-
-def login():
-    st.title("Autoryzacja Systemu")
-    with st.container():
-        st.markdown('<div style="background-color: #30363d; padding: 30px; border-radius: 10px; border: 1px solid #8b949e;">', unsafe_allow_html=True)
-        user = st.text_input("Użytkownik")
-        password = st.text_input("Hasło", type="password")
-        if st.button("Zaloguj do Magazynu"):
-            if user == "admin" and password == "123":
-                st.session_state.auth = True
-                st.rerun()
-            else:
-                st.error("Nieprawidłowe dane")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-if not st.session_state.auth:
-    login()
-    st.stop()
-
 # --- BAZA DANYCH ---
 def get_connection():
     return sqlite3.connect('magazyn_finalny.db', check_same_thread=False)
@@ -84,7 +62,7 @@ init_db()
 
 # --- NAWIGACJA ---
 if 'menu' not in st.session_state:
-    st.session_state.menu = "Pulpit Manedżerski"
+    st.session_state.menu = "Wyszukiwarka Zasobów" # Zmieniono na wyszukiwarkę jako start
 
 with st.sidebar:
     st.markdown("<h2 style='text-align: center; color: #58a6ff;'>KONTROLA MAGAZYNU</h2>", unsafe_allow_html=True)
@@ -93,10 +71,6 @@ with st.sidebar:
     if st.button("Rejestracja Dostaw"): st.session_state.menu = "Rejestracja Dostaw"
     if st.button("Raport Finansowy"): st.session_state.menu = "Raport Finansowy"
     if st.button("Konfiguracja Kategorii"): st.session_state.menu = "Konfiguracja Kategorii"
-    st.divider()
-    if st.button("🔴 Wyloguj"):
-        st.session_state.auth = False
-        st.rerun()
 
 # --- MODUŁY ---
 
